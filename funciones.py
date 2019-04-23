@@ -11,7 +11,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from scipy import stats
 import pyprind
-
+import operator
 
 #with open('Ads-txt site list.csv', newline='') as File:
 #    reader = csv.reader(File)
@@ -48,7 +48,7 @@ def save_info(num_urls, timeouts, httperrors, lib_errors, downloads, notfound, n
         info.write('time: ' + str(elapsed) + 's\n')
 
 def print_info(num_urls, timeouts, httperrors,lib_errors, downloads, notfound, numredirs, inicio, fin):
-    print("Urls comprobadas: " + str(num_urls))
+    print("Urls comprobadas: " + str(num_urls) + '                 ')
     print("Ficheros ads.tx descargados:" + str(downloads) + " (" + str((downloads/num_urls)*100) + "%)")
     print("Ficheros ads.txt no encontrados: " + str(notfound) + " (" + str((notfound/num_urls)*100) + "%)")
     print("HTTPErrors: " + str(httperrors) + " (" + str((httperrors/num_urls)*100) + "%)")
@@ -179,8 +179,6 @@ def my_crawler(urls, date, timeout, start):
     print_info(len(urls), timeouts, httperrors, lib_errors, len(adsurls), notfound, numredirs, start, fin)
     save_info(len(urls), timeouts, httperrors, lib_errors, len(adsurls), notfound, numredirs, date, start, fin)
 
-    print(last_modified_df)
-
     return adsurls, noadsurls
 
 def my_parser(graph, adsurls, date):
@@ -294,7 +292,7 @@ def my_parser(graph, adsurls, date):
                                             'account_type',
                                             'certification_authority_id'])
 
-        ads_dataframes_list.append(df.drop_duplicates(subset = 'seller_account_id', keep = False))
+        ads_dataframes_list.append(df.drop_duplicates(subset = 'seller_account_id', keep = False))  #REVISAAAAAR!!
 
 
         df.to_csv(date + '/ads_txt_csv/adstxt_('+ url + ').csv',index=False)
@@ -302,8 +300,7 @@ def my_parser(graph, adsurls, date):
     similarity_matrix = [[0 for x in range(len(ads_dataframes_list))] for y in range(len(ads_dataframes_list))]
 
     for i in range(0,len(ads_dataframes_list)):
-        for j in range(0,len(ads_dataframes_list)):
-            print(str(i)+str(j))
+        for j in range(i,len(ads_dataframes_list)):
             #lineas_iguales = pd.merge(ads_dataframes_list[i], ads_dataframes_list[j], on=['ad_system','seller_account_id','account_type','certification_authority_id'], how='inner', copy=False)
             concat = pd.concat([ads_dataframes_list[i], ads_dataframes_list[j]])
 
@@ -311,16 +308,48 @@ def my_parser(graph, adsurls, date):
             lineas_distintas = concat.drop_duplicates(keep=False)
             coincidentes = (totales - len(lineas_distintas))/2
 
-            print('lineas iguales: ' + str(coincidentes))
-            print('lista i: '+ str(len(ads_dataframes_list[i])))
-            print('lista j: '+ str(len(ads_dataframes_list[j])))
-
             if(min(len(ads_dataframes_list[i]),len(ads_dataframes_list[j]))) !=0:
-
                 porcentaje = (coincidentes/min(len(ads_dataframes_list[i]),len(ads_dataframes_list[j])))*100
                 similarity_matrix[i][j] = porcentaje
+
             else:
                 similarity_matrix[i][j] = 0
+
+    similarity_vector = []
+    colum_ya_miradas = []
+    dic_grupos = {}
+    dic_grupos['Independientes'] = []
+
+    k = 0
+    for i in range(0,len(ads_dataframes_list)):
+        lista_grupos = []
+        lista_grupos.append(adsurls[i])
+        for j in range(i,len(ads_dataframes_list)):                     #Si hago esto en la matriz ahorro tiempo???
+            if(i != j):                                                 #Eliminamos las comparaciones de un archivo consigo mismo
+                similarity_vector.append(similarity_matrix[i][j])       #para no coger valores = 100 falsos.
+                if(similarity_matrix[i][j] > 80):
+                    if((i in colum_ya_miradas) == False):
+                        lista_grupos.append(adsurls[j])
+                        colum_ya_miradas.append(j)
+        if(len(lista_grupos) > 1):
+            dic_grupos['Publisher%d'%k] = lista_grupos
+            k += 1
+        elif((i in colum_ya_miradas) == False):
+            dic_grupos.get('Independientes').append(adsurls[i])
+
+    resultado = sorted(dic_grupos.items(), key=operator.itemgetter(0))
+
+    for k, v in resultado:
+        print(k + ': ')
+        for linea in v:
+            print('\t' + str(linea))
+
+    with open(date + '/info/groups.txt', 'a') as groups:
+        for k, v in resultado:
+            groups.write("{}\n".format(k + '\n\t' + str(v)))
+
+    #print(resultado)
+    #print(similarity_vector)
 
     with open(date + '/errors/cuentas_no_pilladas.txt', 'a') as log:
         log.write("{}\n".format('No he pillado ' + str(no_pillaos) + ' tipos de cuenta:'))
@@ -335,6 +364,7 @@ def my_parser(graph, adsurls, date):
     d_pub = pd.DataFrame(data_publisher, columns = ['publisher',
                                                     'num_directs',
                                                     'num_resellers'])
+
     d_pub.to_csv(date + '/info/num_sellers.csv',index=False)
 
     matrix_df = pd.DataFrame(similarity_matrix)
@@ -352,6 +382,12 @@ def my_parser(graph, adsurls, date):
         b = sns.distplot(d_pub['num_resellers'], kde = True ,hist=True, rug=False, label='Histograma RESELLERS');
         fig = b.get_figure()
         fig.savefig(date + '/info/resellers_hist.png')
+    if len(similarity_vector)>1:
+        plt.figure()
+        c = sns.distplot(similarity_vector, kde = True ,hist=True, rug=False, label='Hitograma Similarity', color='green');
+        fig = c.get_figure()
+        fig.savefig(date + '/info/similarity_hist.png')
+
 
         # for i in range(0,len(adSystems)):
         #     if(len(accountTypes[i]) != 6):

@@ -7,11 +7,9 @@ from funciones import *
 def main():
     start = time.time()
 
-    parser = argparse.ArgumentParser(
-        description="Crawler and Parser for ads.txt files"
-    )
+    parser = argparse.ArgumentParser(description="Crawler and Parser for ads.txt files")
 
-    parser.add_argument('path', help="The path to the url list")
+    parser.add_argument('path', help="Path to the url list")
     parser.add_argument('urls', help="Number of urls you want to analyze", type=int)
     parser.add_argument('timeout', help="Timeout (s) for the requests", type=float)
     arguments = vars(parser.parse_args())
@@ -44,10 +42,18 @@ def main():
     adsurls, noadsurls = my_crawler(www_urls, date, arguments['timeout'], start)
     print("Crawler finalizado.\n")
 
-
+    inicio_parser = time.time()
     print("Iniciando Parser.")
     my_parser(graph, adsurls, date)
+    tiempo_parser = time.time() - inicio_parser
+    print('Tiempor parser: ' + str(tiempo_parser) + 's')
     print("Parser finalizado.")
+
+    total = time.time() - start
+    print('\n TOTAL TIME: ' + str(total) + 's')
+
+
+
 
 
 if __name__ == "__main__":
