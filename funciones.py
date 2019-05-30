@@ -36,8 +36,9 @@ def url_text_add(text, raw_urls):
         urls.append( text + url + '/ads.txt')
     return urls
 
-def save_info(num_urls, timeouts, httperrors, lib_errors, downloads, notfound, numredirs, date, inicio, fin):
-    with open(date + '/info/info.txt', 'w') as info:
+def save_info_crawler(num_urls, timeouts, httperrors, lib_errors, downloads, notfound, numredirs, date, inicio, fin):
+    with open(date + '/info/info.txt', 'a') as info:
+        info.write("CRAWLER")
         info.write("Urls comprobadas: " + str(num_urls) + "\n")
         info.write("Ficheros ads.tx descargados:" + str(downloads) + "(" + str((downloads/num_urls)*100) + "%)\n")
         info.write("Ficheros ads.txt no encontrados: " + str(notfound) + " (" + str((notfound/num_urls)*100) + "%)\n")
@@ -47,7 +48,14 @@ def save_info(num_urls, timeouts, httperrors, lib_errors, downloads, notfound, n
         elapsed = fin - inicio
         info.write('time: ' + str(elapsed) + 's\n')
 
-def print_info(num_urls, timeouts, httperrors,lib_errors, downloads, notfound, numredirs, inicio, fin):
+def save_info_parser(date, inicio, fin):
+    with open(date + '/info/info.txt', 'a') as info:
+        info.write("PARSER")
+        elapsed = fin - inicio
+        info.write('time: ' + str(elapsed) + 's\n')
+
+
+def print_info_crawler(num_urls, timeouts, httperrors,lib_errors, downloads, notfound, numredirs, inicio, fin):
     print("Urls comprobadas: " + str(num_urls) + '                 ')
     print("Ficheros ads.tx descargados:" + str(downloads) + " (" + str((downloads/num_urls)*100) + "%)")
     print("Ficheros ads.txt no encontrados: " + str(notfound) + " (" + str((notfound/num_urls)*100) + "%)")
@@ -65,9 +73,9 @@ def mkdir(name):
         print ("Error creando directorio " + name)
     return 0
 
-def draw_histogram(list):
+def draw_histogram(data):
     sns.set(color_codes=True)
-    sns.distplot(list, kde = True ,hist=True, rug=False);
+    sns.distplot(data, kde = True ,hist=True, rug=False);
 
 
 def my_crawler(urls, date, timeout, start):
@@ -176,12 +184,87 @@ def my_crawler(urls, date, timeout, start):
     redirs_df.to_csv(date + '/redirecciones/redirs_info.csv',index=False)
 
     fin = time.time()
-    print_info(len(urls), timeouts, httperrors, lib_errors, len(adsurls), notfound, numredirs, start, fin)
-    save_info(len(urls), timeouts, httperrors, lib_errors, len(adsurls), notfound, numredirs, date, start, fin)
+    print_info_crawler(len(urls), timeouts, httperrors, lib_errors, len(adsurls), notfound, numredirs, start, fin)
+    save_info_crawler(len(urls), timeouts, httperrors, lib_errors, len(adsurls), notfound, numredirs, date, start, fin)
 
     return adsurls, noadsurls
 
-def my_parser(graph, adsurls, date):
+def is_singular(matrix):
+    return matrix.shape[0] == matrix.shape[1] and np.linalg.matrix_rank(matrix) == matrix.shape[0]
+
+def get_publisher_adstxt(dic, date):
+
+    dic_publishers = {}
+    directs_list_pub = []
+    resellers_list_pub = []
+
+    for key in dic:
+
+        accountTypesPublisher = []
+        len_test = 0
+        num_directs_publisher=0
+        num_resellers_publisher=0
+        df_publisher = pd.DataFrame(columns = ['ad_system',
+                                               'seller_account_id',
+                                               'account_type',
+                                               'certification_authority_id'])
+
+        if key == 'Independientes':
+            continue
+
+        k=0
+
+        for linea in dic.get(key):
+            data = pd.read_csv(date + '/ads_txt_csv/adstxt_(' + linea + ').csv')
+
+            df = pd.DataFrame(data, columns = ['ad_system',
+                                               'seller_account_id',
+                                               'account_type',
+                                               'certification_authority_id'])
+
+            len_test = len_test + len(df)
+
+            df_publisher = pd.concat([df_publisher,df], ignore_index=True)
+
+            k = k+1
+
+        print('Test de concatenación correcta: ' + str(len_test == len(df_publisher)))
+
+        df_publisher.drop_duplicates(keep='first', inplace=True)
+
+        df_publisher.to_csv(date + '/ads_txt_publisher/adstxt_('+ key + ').csv',index=False)
+
+        accountTypesPublisher = df_publisher['account_type'].tolist()
+
+        for i in range(0,len(accountTypesPublisher)):
+
+            if(len(str(accountTypesPublisher[i])) != 6):
+                if accountTypesPublisher[i][0:8] == "RESELLER":
+                    num_resellers_publisher += 1
+
+                elif accountTypesPublisher[i][0:6] == "DIRECT":
+                    num_directs_publisher += 1
+
+            else:
+                if accountTypesPublisher[i] == "DIRECT":
+                    num_directs_publisher += 1
+
+        directs_list_pub.append(num_directs_publisher)
+        resellers_list_pub.append(num_resellers_publisher)
+
+        dic_publishers[key] = df;
+
+    info_publishers = {'num_directs': directs_list_pub,
+                       'num_resellers': resellers_list_pub}
+
+    df_info_publisher = pd.DataFrame(info_publishers, columns = ['num_directs',
+                                                                 'num_resellers'])
+
+    df_info_publisher.to_csv(date + '/info/num_sellers_publisher.csv',index=False)
+
+    return dic_publishers, info_publishers
+
+def my_parser(graph, adsurls, date, start):
 
     certificationAuthorityID = ''
     comentarios = ''
@@ -292,7 +375,7 @@ def my_parser(graph, adsurls, date):
                                             'account_type',
                                             'certification_authority_id'])
 
-        ads_dataframes_list.append(df.drop_duplicates(subset = 'seller_account_id', keep = False))  #REVISAAAAAR!!
+        ads_dataframes_list.append(df.drop_duplicates(subset = 'seller_account_id', keep = False))  # keep = 'first'?????
 
 
         df.to_csv(date + '/ads_txt_csv/adstxt_('+ url + ').csv',index=False)
@@ -339,14 +422,17 @@ def my_parser(graph, adsurls, date):
 
     resultado = sorted(dic_grupos.items(), key=operator.itemgetter(0))
 
-    for k, v in resultado:
-        print(k + ': ')
-        for linea in v:
-            print('\t' + str(linea))
+    dic_publishers, info_publishers = get_publisher_adstxt(dic_grupos, date)
+
+    pub_directs = info_publishers.get('num_directs')
+    pub_resellers = info_publishers.get('num_resellers')
 
     with open(date + '/info/groups.txt', 'a') as groups:
         for k, v in resultado:
             groups.write("{}\n".format(k + '\n\t' + str(v)))
+
+        for k in dic_grupos:
+            groups.write("{}\n".format(k + " : " + str(len(dic_grupos.get(k)))))
 
     #print(resultado)
     #print(similarity_vector)
@@ -387,6 +473,20 @@ def my_parser(graph, adsurls, date):
         c = sns.distplot(similarity_vector, kde = True ,hist=True, rug=False, label='Hitograma Similarity', color='green');
         fig = c.get_figure()
         fig.savefig(date + '/info/similarity_hist.png')
+    if len(pub_directs)>1:
+        plt.figure()
+        d = sns.distplot(pub_directs, kde = True ,hist=True, rug=False, label='Hitograma DIRECTS PUBLISHERS', color='black');
+        fig = d.get_figure()
+        fig.savefig(date + '/info/pub_directs_hist.png')
+    if len(pub_resellers)>1:
+        plt.figure()
+        e = sns.distplot(pub_resellers, kde = True ,hist=True, rug=False, label='Hitograma RESELLERS PUBLISHERS', color='yellow');
+        fig = c.get_figure()
+        fig.savefig(date + '/info/pub_resellers_hist.png')
+
+    fin = time.time()
+    save_info_parser(date, start, fin)
+
 
 
         # for i in range(0,len(adSystems)):
@@ -408,7 +508,7 @@ def my_parser(graph, adsurls, date):
         #     else:
         #
         #         if linea.split(',')[2].strip().upper()[0:6] == "DIRECT":
-        #             node = Node("Direct", url=adSystems[i], accountID = sellerAcountIDs[i])
+        #             node = Node("Direct", url=adSystems[i], accountID = sellerAcountIDsPublisher[i])
         #             relacion = "DIRECT"
         #
         #         else:

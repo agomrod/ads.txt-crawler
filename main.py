@@ -20,6 +20,7 @@ def main():
     mkdir(date)
     mkdir(date + '/ads_txt')
     mkdir(date + '/ads_txt_csv')
+    mkdir(date + '/ads_txt_publisher')
     mkdir(date + '/redirecciones')
     mkdir(date + '/info')
     mkdir(date + '/errors')
@@ -44,7 +45,7 @@ def main():
 
     inicio_parser = time.time()
     print("Iniciando Parser.")
-    my_parser(graph, adsurls, date)
+    my_parser(graph, adsurls, date, start)
     tiempo_parser = time.time() - inicio_parser
     print('Tiempor parser: ' + str(tiempo_parser) + 's')
     print("Parser finalizado.")
