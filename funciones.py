@@ -239,14 +239,14 @@ def get_publisher_adstxt(dic, date):
         for i in range(0,len(accountTypesPublisher)):
 
             if(len(str(accountTypesPublisher[i])) != 6):
-                if accountTypesPublisher[i][0:8] == "RESELLER":
+                if str(accountTypesPublisher[i])[0:8] == "RESELLER":
                     num_resellers_publisher += 1
 
-                elif accountTypesPublisher[i][0:6] == "DIRECT":
+                elif str(accountTypesPublisher[i])[0:6] == "DIRECT":
                     num_directs_publisher += 1
 
             else:
-                if accountTypesPublisher[i] == "DIRECT":
+                if str(accountTypesPublisher[i]) == "DIRECT":
                     num_directs_publisher += 1
 
         directs_list_pub.append(num_directs_publisher)
@@ -422,11 +422,6 @@ def my_parser(graph, adsurls, date, start):
 
     resultado = sorted(dic_grupos.items(), key=operator.itemgetter(0))
 
-    dic_publishers, info_publishers = get_publisher_adstxt(dic_grupos, date)
-
-    pub_directs = info_publishers.get('num_directs')
-    pub_resellers = info_publishers.get('num_resellers')
-
     with open(date + '/info/groups.txt', 'a') as groups:
         for k, v in resultado:
             groups.write("{}\n".format(k + '\n\t' + str(v)))
@@ -473,6 +468,14 @@ def my_parser(graph, adsurls, date, start):
         c = sns.distplot(similarity_vector, kde = True ,hist=True, rug=False, label='Hitograma Similarity', color='green');
         fig = c.get_figure()
         fig.savefig(date + '/info/similarity_hist.png')
+
+
+
+    dic_publishers, info_publishers = get_publisher_adstxt(dic_grupos, date)
+
+    pub_directs = info_publishers.get('num_directs')
+    pub_resellers = info_publishers.get('num_resellers')
+
     if len(pub_directs)>1:
         plt.figure()
         d = sns.distplot(pub_directs, kde = True ,hist=True, rug=False, label='Hitograma DIRECTS PUBLISHERS', color='black');
